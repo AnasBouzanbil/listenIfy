@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: musicroom-db
+    environment:
+      POSTGRES_DB: ${APP_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - musicroom_data:/var/lib/postgresql/data
+
+volumes:
+  musicroom_data:

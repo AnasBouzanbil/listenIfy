@@ -1,0 +1,37 @@
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/generated/
+
+# Android
+/android/app/debug
+/android/app/profile
+/android/app/release
+*.apk
+*.aab
+
+# IntelliJ/VS Code
+*.iml
+.idea/
+.vscode/
+
+# Logs
+*.log

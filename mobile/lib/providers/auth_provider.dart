@@ -1,0 +1,456 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
+
+/// Authentication status enum used by the router to determine which
+/// screen stack to display.
+enum AuthStatus { loading, authenticated, unauthenticated }
+
+/// Custom exception for unverified user flow
+class UserNotVerifiedException implements Exception {
+  const UserNotVerifiedException();
+}
+
+/// Central auth state manager.
+/// The RouterDelegate listens to this provider and rebuilds the
+/// navigation stack whenever [authStatus] changes.
+class AuthProvider with ChangeNotifier {
+  final AuthService _authService = AuthService();
+
+  AuthStatus _authStatus = AuthStatus.loading;
+  UserModel? _currentUser;
+  String? _errorMessage;
+  bool _isBusy = false; // true while an HTTP request is in-flight
+
+  // ── Getters ───────────────────────────────────────────────────────────
+  AuthStatus get authStatus => _authStatus;
+  UserModel? get currentUser => _currentUser;
+  String? get errorMessage => _errorMessage;
+  bool get isBusy => _isBusy;
+
+  // ── SharedPreferences key ─────────────────────────────────────────────
+  static const String _userKey = 'current_user';
+
+  // ── Check Session ─────────────────────────────────────────────────────
+  /// Called on app launch from the splash screen.
+  /// Reads persisted user data from SharedPreferences.
+  Future<void> checkSession() async {
+    _authStatus = AuthStatus.loading;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString(_userKey);
+
+    if (userData != null) {
+      _currentUser = UserModel.decode(userData);
+      _authStatus = AuthStatus.authenticated;
+    } else {
+      _authStatus = AuthStatus.unauthenticated;
+    }
+
+    notifyListeners();
+  }
+
+  // ── Login ─────────────────────────────────────────────────────────────
+  /// Calls POST /login, persists user on success.
+  Future<bool> login({
+    required String email,
+    required String password,
+  }) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      final response = await _authService.login(
+        email: email,
+        password: password,
+      );
+
+      // Extract user and tokens from response
+      final userInfo = response['userInfo'];
+      if (userInfo is! Map) {
+        throw const AuthException('Unexpected login response from server');
+      }
+      final userJson = Map<String, dynamic>.from(userInfo);
+      final isEmailVerified = _toBool(userJson['emailVerified']);
+      if (!isEmailVerified) {
+        _isBusy = false;
+        notifyListeners();
+        throw const UserNotVerifiedException();
+      }
+
+      userJson['fullName'] = userJson['displayname'] ?? '';
+      userJson['accessToken'] = response['accessToken'];
+      userJson['refreshToken'] = response['refreshToken'];
+      _currentUser = UserModel.fromJson(userJson);
+
+      // Persist session
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userKey, _currentUser!.encode());
+
+      _authStatus = AuthStatus.authenticated;
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on UserNotVerifiedException {
+      _isBusy = false;
+      notifyListeners();
+      rethrow;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Calls POST /signup.
+  /// Does NOT auto-verify. Returns true on success so UI can navigate to OTP screen.
+  Future<bool> signup({
+    required String fullName,
+    required String email,
+    required String password,
+  }) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.signup(
+        fullName: fullName,
+        email: email,
+        password: password,
+      );
+
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Verify OTP and Login ──────────────────────────────────────────────
+  Future<bool> verifyOtpAndLogin({
+    required String email,
+    required String otp,
+  }) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.verifyOtp(email: email, otp: otp);
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Resend OTP ────────────────────────────────────────────────────────
+  Future<bool> resendOtp({required String email}) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.resendOtp(email: email);
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Forgot Password ───────────────────────────────────────────────────
+  Future<bool> forgotPassword({required String email}) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.forgotPassword(email: email);
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Verify Reset OTP ──────────────────────────────────────────────────
+  Future<bool> verifyResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.verifyResetOtp(email: email, otp: otp);
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Reset Password ────────────────────────────────────────────────────
+  Future<bool> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      await _authService.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: newPassword,
+      );
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Connection error. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Google Sign-In ────────────────────────────────────────────────────
+  /// Launches the Google account picker, then calls POST /auth/google.
+  /// On success, persists session and navigates to HomeScreen.
+  Future<bool> signInWithGoogle() async {
+    _errorMessage = null;
+    _isBusy = true;
+    notifyListeners();
+
+    try {
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        // iOS: uses clientId (no GoogleService-Info.plist without Firebase)
+        clientId: dotenv.env['GOOGLE_IOS_CLIENT_ID'],
+        // Android: uses serverClientId (web client ID) to obtain an idToken
+        serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID'],
+      );
+
+      final googleUser = await googleSignIn.authenticate();
+
+      if (googleUser == null) {
+        // User cancelled the picker
+        _isBusy = false;
+        notifyListeners();
+        return false;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const AuthException('Google sign-in failed');
+      }
+
+      final response = await _authService.googleSignIn(
+        idToken: idToken,
+      );
+
+      final userJson = Map<String, dynamic>.from(
+        response['userInfo'] as Map<String, dynamic>,
+      );
+      userJson['fullName'] = userJson['displayname'] ?? '';
+      userJson['accessToken'] = response['accessToken'] as String? ?? '';
+      userJson['refreshToken'] = response['refreshToken'] as String? ?? '';
+      _currentUser = UserModel.fromJson(userJson);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userKey, _currentUser!.encode());
+
+      _authStatus = AuthStatus.authenticated;
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = _mapErrorMessage(e.message);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } on PlatformException catch (e) {
+      _errorMessage = _mapGoogleSignInPlatformError(e);
+      debugPrint(
+        'Google Sign-In platform error: '
+        'code=${e.code}, message=${e.message}, details=${e.details}',
+      );
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('Google Sign-In unexpected error: $e');
+      _errorMessage = 'Google sign-in failed. Please try again.';
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Logout ────────────────────────────────────────────────────────────
+  /// Clears persisted session and resets state.
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_userKey);
+
+    _currentUser = null;
+    _authStatus = AuthStatus.unauthenticated;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  // ── Refresh Token ─────────────────────────────────────────────────────
+  /// Uses the stored refresh token to get a new access token.
+  /// If it fails, logs the user out.
+  Future<bool> refreshTokens() async {
+    if (_currentUser == null || _currentUser!.refreshToken == null) {
+      await logout();
+      return false;
+    }
+
+    try {
+      final response = await _authService.refreshToken(
+        refreshToken: _currentUser!.refreshToken!,
+      );
+
+      final newAccessToken = response['accessToken'];
+      final newRefreshToken = response['refreshToken'] ?? _currentUser!.refreshToken;
+
+      if (newAccessToken != null) {
+        // Update current user model
+        final updatedJson = _currentUser!.toJson();
+        updatedJson['accessToken'] = newAccessToken;
+        updatedJson['refreshToken'] = newRefreshToken;
+        
+        _currentUser = UserModel.fromJson(updatedJson);
+
+        // Persist new session
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_userKey, _currentUser!.encode());
+        
+        notifyListeners();
+        return true;
+      } else {
+        throw const AuthException('No access token in response');
+      }
+    } catch (e) {
+      debugPrint('Token refresh failed: $e');
+      await logout(); // Force re-login if refresh token is expired or invalid
+      return false;
+    }
+  }
+
+  /// Clears any displayed error message.
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  String _mapErrorMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('user not found')) {
+      return 'Email does not exist';
+    }
+    return message;
+  }
+
+  bool _toBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is String) return value.toLowerCase() == 'true';
+    if (value is num) return value != 0;
+    return false;
+  }
+
+  String _mapGoogleSignInPlatformError(PlatformException e) {
+    final code = e.code.toLowerCase();
+    final message = (e.message ?? '').toLowerCase();
+
+    if (code.contains('canceled') || code.contains('cancelled')) {
+      return 'Google sign-in canceled.';
+    }
+
+    // Common Android Google Sign-In config mismatch.
+    if (message.contains('developer_error') || message.contains('10')) {
+      return 'Google Sign-In configuration error (SHA-1, package name, or client ID mismatch).';
+    }
+
+    if (message.contains('network_error') || code.contains('network')) {
+      return 'Network error during Google sign-in. Check your internet and try again.';
+    }
+
+    if ((e.message ?? '').trim().isNotEmpty) {
+      return 'Google sign-in failed: ${e.message}';
+    }
+
+    return 'Google sign-in failed. Please try again.';
+  }
+}
