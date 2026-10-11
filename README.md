@@ -1,89 +1,21 @@
-# 🎵 MusicRoom
+# 🎵 listenIfy / MusicRoom
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.11+-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.5-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-**MusicRoom** is a premium, high-fidelity, real-time collaborative music streaming and sharing platform. Built with a robust **Spring Boot (Java 21)** backend and a beautiful, theme-aware **Flutter** mobile client, it empowers users to host live music rooms, collaborate on playlists with friends, vote on upcoming tracks, and stream high-quality audio in perfect synchronization. 
-
----
-
-## 📱 Visual Showcase
-
-Explore the stunning, theme-aware user interface designed for maximum engagement, high-performance interactions, and modern design aesthetics.
-
-### 🏠 The Core Hub & Music discovery
-Discover popular music, jump back into your curated library, or find active live sessions directly from the landing dashboard.
-
-<table width="100%">
-  <tr>
-    <td width="33%" align="center">
-      <b>Home Feed</b><br/>
-      <img src="screenshots/Home.png" alt="Home Screen" width="250"/>
-      <br/><i>Access trending tracks, personal playlists, and ongoing live events in one dynamic view.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>Trending Tracks</b><br/>
-      <img src="screenshots/TrendingTracks.png" alt="Trending Tracks" width="250"/>
-      <br/><i>Explore viral global hits and immediately listen to high-quality audio.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>Decentralized Search</b><br/>
-      <img src="screenshots/Search.png" alt="Search tracks" width="250"/>
-      <br/><i>Instant, fuzzy track searching powered by the Audius music catalog.</i>
-    </td>
-  </tr>
-</table>
-
-### 👥 Collaboration & Live Rooms
-Host collaborative parties, manage listener capabilities, and invite friends to enjoy synchronized music.
-
-<table width="100%">
-  <tr>
-    <td width="33%" align="center">
-      <b>Live Music Room</b><br/>
-      <img src="screenshots/event.png" alt="Live Event Room" width="250"/>
-      <br/><i>Stream in real-time, vote on the queue, and suggest new tracks collaboratively.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>Collaborator Permissions</b><br/>
-      <img src="screenshots/permisions.png" alt="Permissions Management" width="250"/>
-      <br/><i>Assign roles dynamically (Owner, Editor, Voter) to manage playback and suggestions.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>Invite Friends</b><br/>
-      <img src="screenshots/InviteUserToplaylistOrEvent.png" alt="Invite User" width="250"/>
-      <br/><i>Quickly search for registered platform users and add them to your collaborative rooms.</i>
-    </td>
-  </tr>
-</table>
-
-### ⚙️ Library, Configuration & Settings
-Organize your spaces, update privacy preferences, and custom tailor your identity.
-
-<table width="100%">
-  <tr>
-    <td width="33%" align="center">
-      <b>Your Library</b><br/>
-      <img src="screenshots/YourLibrary.png" alt="Your Library" width="250"/>
-      <br/><i>A unified dashboard displaying all playlists you own or collaborate on.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>Create Playlist or Event</b><br/>
-      <img src="screenshots/CreatePlaylistOrEvent.png" alt="Creation Hub" width="250"/>
-      <br/><i>Instantly initialize a shared music playlist or launch a public/private live party.</i>
-    </td>
-    <td width="33%" align="center">
-      <b>User Profile</b><br/>
-      <img src="screenshots/profile.png" alt="User Profile" width="250"/>
-      <br/><i>Manage personal information, accounts, active states, and custom themes.</i>
-    </td>
-  </tr>
-</table>
+**listenIfy (MusicRoom)** is a team project for sharing music in live rooms and building playlists together. It uses a **Spring Boot (Java 21)** backend and a **Flutter** mobile app.
 
 ---
+
+## Project structure
+
+| Folder | Purpose |
+| --- | --- |
+| [backend/musicroom](./backend/musicroom/) | Spring Boot backend |
+| [mobile](./mobile/) | Flutter mobile app |
+| [env_example](./env_example) | Environment configuration reference |
 
 ## ✨ Key Features
 
@@ -117,7 +49,7 @@ Organize your spaces, update privacy preferences, and custom tailor your identit
 *   **State Management**: Provider (Listening to explicit auth, playlist, and event state changes)
 *   **Networking & Socket Clients**: HTTP client with Bearer Interceptors, Stomp Dart Client for persistent real-time socket connections
 *   **Audio Engines**: `just_audio` and `audioplayers` for low-latency decentralized streaming and local asset controls
-*   **Persistence**: `shared_preferences` for encrypted secure local user session storage
+*   **Persistence**: `shared_preferences` for local preferences and session data
 
 ---
 
@@ -184,12 +116,12 @@ graph TD
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/MusicRoom-App.git
-   cd MusicRoom-App/backend/musicroom
+   git clone https://github.com/AnasBouzanbil/listenIfy.git
+   cd listenIfy/backend/musicroom
    ```
 
 2. **Configure environment variables**:
-   Create a `.env` file in `backend/musicroom/` (use the provided `.env` template as reference):
+   Create a `.env` file in `backend/musicroom/` (see the root [env_example](./env_example) file for the configuration reference):
    ```env
    # PostgreSQL Settings
    DB_URL=jdbc:postgresql://localhost:5432/musicroom
